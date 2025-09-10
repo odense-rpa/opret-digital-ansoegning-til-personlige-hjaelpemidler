@@ -62,8 +62,7 @@ if __name__ == "__main__":
     ats = AutomationServer.from_environment()
     workqueue = ats.workqueue()
 
-    nexus_credential = Credential.get_credential("KMD Nexus - produktion")
-    nexus_database_credential = Credential.get_credential("KMD Nexus - database")
+    nexus_credential = Credential.get_credential("KMD Nexus - produktion")    
     xflow_credential = Credential.get_credential("Xflow - produktion")
     tracking_credential = Credential.get_credential("Odense SQL Server")
     reporting_credential = Credential.get_credential("RoboA")
