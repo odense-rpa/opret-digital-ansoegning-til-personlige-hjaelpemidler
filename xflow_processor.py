@@ -1,3 +1,7 @@
+from kmd_nexus_client.tree_helpers import (
+    filter_by_predicate,    
+)
+
 class XFlowProcessor:
     def is_non_empty(self, val):
         if val is None:
@@ -59,26 +63,25 @@ class XFlowProcessor:
         try:
             blanketter = arbejdsgang["blanketter"]
 
-            samlet_ansøgning = [b for b in blanketter if b["blanketnavn"] == "Kropsbårne hjælpemidler - samlet ansøgning V2"]
-            person_oplysninger = [b for b in blanketter if b["blanketnavn"] == "Kropsbårne hjælpemidler - Personoplysninger V2"]
-
+            samlet_ansøgning = filter_by_predicate(
+                roots=blanketter,
+                predicate=lambda x: x["blanketnavn"] == "Kropsbårne hjælpemidler - samlet ansøgning V2"
+            )
+            person_oplysninger = filter_by_predicate(
+                roots=blanketter,
+                predicate=lambda x: x["blanketnavn"] == "Kropsbårne hjælpemidler - Personoplysninger V2"
+            )
             filtreret_ansøgning = self.traverse_json_for_referable_elements(samlet_ansøgning[0])
             filtreret_person_oplysninger = self.traverse_json_for_referable_elements(person_oplysninger[0])
 
-            paa_vegne_af_valg = [e for e in filtreret_person_oplysninger if e["identifier"] == "PaaVegneAfValg"][0]
+            cpr = filter_by_predicate(
+                roots=person_oplysninger[0]["elementer"],
+                predicate=lambda x: x.get("identifier") in ("PersonoplysningerAnsoegerVedAndenPart", "PersonoplysningerAnsoegerSelv")
+            )
+            cpr = cpr[0].get("values", {}).get("CprNummer") if cpr else None
 
-            children = paa_vegne_af_valg.get("children")[0]
-            if isinstance(children, list):
-                personoplysninger_child = next(
-                    (child for child in children if isinstance(child, dict) and child.get("identifier") == "PersonoplysningerAnsoegerVedAndenPart" or child.get("identifier") == "PersonoplysningerAnsoegerSelv"),
-                    None
-                )
-            else:
-                personoplysninger_child = None
-
-            cpr = personoplysninger_child.get("values", {}).get("CprNummer") if personoplysninger_child else None
             genansøgning = next((e.get("values", {}).get("YesSelected") for e in filtreret_ansøgning if e.get("identifier") == "HarDuTidligereSoegt"), None)
-
+            
             vedhæftede_filer = []
 
             bemærkninger_og_vedhæft_filer_list = [e for e in filtreret_ansøgning if e.get("identifier") == "BemærkningerOgVedhaeftFiler"]
@@ -103,6 +106,6 @@ class XFlowProcessor:
             
             return kødata
 
-        except Exception:            
+        except Exception as e:
             return None
         
