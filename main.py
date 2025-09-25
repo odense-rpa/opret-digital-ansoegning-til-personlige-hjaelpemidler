@@ -3,6 +3,7 @@ import argparse
 import sys
 import asyncio
 import logging
+import base64
 
 from datetime import datetime, timedelta
 from automation_server_client import AutomationServer, Workqueue, WorkItemError, Credential
@@ -30,7 +31,7 @@ async def populate_queue(workqueue: Workqueue):
     xlow_søge_query = {
         "text": "",
         "processTemplateIds": [
-            "372" #372 #726
+            "740" #372 #726
         ],
         "startIndex": 0,        
         "createdDateFrom": (datetime.today() - timedelta(days=1)).strftime('%d-%m-%Y'),
@@ -43,11 +44,10 @@ async def populate_queue(workqueue: Workqueue):
     )
         
     for arbejdsgang in afsluttede_arbejdsgange:
-        kødata = xflow_processor.hent_dataudtræk_til_kødata(arbejdsgang)
+        kødata = xflow_processor.hent_dataudtræk_til_kødata(arbejdsgang, xflow_process_client)
 
-        if kødata is not None:
-            pass
-            #workqueue.add_item(data=kødata, reference=f"{kødata['ProcesId']}")
+        if kødata is not None:            
+            workqueue.add_item(data=kødata, reference=f"{kødata['ProcesId']}")
 
 def hent_borger(cpr: str) -> dict:
     borger = nexus.borgere.hent_borger(cpr)
@@ -109,18 +109,39 @@ def upload_arbejdsgang_og_vedhæftede_filer(borger: dict, forløb: dict, item_da
         if arbejdsgang_som_pdf is None:
             raise WorkItemError(f"Arbejdsgang med ID {item_data['ProcesId']} kunne ikke hentes som PDF fra Xflow.")
 
+        nexus.forløb.opret_dokument(
+                borger=borger,
+                forløb=forløb,
+                fil=arbejdsgang_som_pdf,
+                filnavn=f"ansøgning.pdf",
+                titel=f"{'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} {item_data['Hjælpemiddel']}",
+                noter="",
+                modtaget=datetime.now(),
+                indholdstype="application/pdf"
+            )
+
         for dokument_id in item_data["DokumentIds"]:
             dokument_data = xflow_document_client.hent_dokument_med_metadata(dokument_id)
             
             if dokument_data is None:
                 raise WorkItemError(f"Dokument med ID {dokument_id} kunne ikke hentes fra Xflow.")
+                        
+            byte_array_b64 = dokument_data.get("byteArray")
+            if byte_array_b64 is not None:
+                try:
+                    byte_array = base64.b64decode(byte_array_b64)
+                except Exception as decode_err:
+                    raise WorkItemError(f"Fejl ved base64-dekodning af dokument med ID {dokument_id}: {decode_err}")
             
+            if byte_array is None:
+                raise WorkItemError(f"Dokument med ID {dokument_id} indeholder ingen data.")
+
             nexus.forløb.opret_dokument(
                 borger=borger,
                 forløb=forløb,
-                fil=dokument_data["byteArray"],
-                filnavn=f"{dokument_data["filename"]}.{dokument_data["fileExtension"]}",
-                titel=dokument_data["filename"],
+                fil=byte_array,
+                filnavn=f"{dokument_data['filename']}",
+                titel=dokument_data['filename'],
                 noter="",
                 modtaget=datetime.now(),
                 indholdstype=dokument_data["contentType"]
@@ -133,15 +154,15 @@ def opret_henvendelsesskema_og_opgave(borger: dict, item_data: dict) -> None:
     regler = get_excel_mapping()
     
     skema_data = {
-        "Henvendelse modtaget": datetime.now().isoformat,
-        "Kilde som henveldensel kommer fra": "Borger",
+        "Henvendelse modtaget": datetime.now(),
+        "Kilde som henvendelsen kommer fra": "Borger",
         "Er borgeren indforstået med henvendelsen?": "Ja",
-        "Hvad drejer henvendelsen sig om": "§112 kropsbårne",
-        "Årsag til henvendelse og sagsbehandlingsforløb (OBS. Husk dato og initialer på noter, og skriv nyeste note nederst)": f"{'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data["Hjælpemiddel"]} - {'Vedhæftede filer' if len(item_data['DokumentIds']) > 0 else ''}"
+        "Hvad drejer henvendelsen sig om?": "§112 kropsbårne",
+        "Årsag til henvendelse og sagsbehandlingsforløb (OBS. Husk dato og initialer på noter, og skriv nyeste note nederst)": f"{'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data["Hjælpemiddel"]}{' - Vedhæftede filer' if len(item_data['DokumentIds']) > 0 else ''}"
     }
 
     skema = nexus.skemaer.opret_komplet_skema(
-        objekt=borger,
+        borger=borger,
         skematype_navn="Henvendelse/sagsåbning hjælpemidler v5",
         handling_navn="Udfyldt",
         data=skema_data,
@@ -152,28 +173,33 @@ def opret_henvendelsesskema_og_opgave(borger: dict, item_data: dict) -> None:
     if skema is None:
         raise WorkItemError("Henvendelsesskema kunne ikke oprettes i Nexus.")
     
-    # TODO: Verificer om skema reference er komplet
+    hjælpemiddelstype = item_data["Hjælpemiddel"].split("-")[0].strip()
+    organisationer = regler.get("Opgaveansvarlig organisation", {})
 
-    # TODO: Test
-    hjælpemiddelstype = item_data["Hjælpemiddel"].split(">")[0].strip()   
-    organisation = regler["Opgaveansvarlig organisation"][hjælpemiddelstype]
+    if hjælpemiddelstype in organisationer:
+        organisation = organisationer[hjælpemiddelstype]
+    elif "Andet" in organisationer:
+        organisation = organisationer["Andet"]
+    else:
+        raise WorkItemError(f"Opgaveansvarlig organisation for '{hjælpemiddelstype}' ikke fundet.")
 
     nexus.opgaver.opret_opgave(
         objekt=skema,
         opgave_type="Myndighed Kropsbårne hjælpemidler - uden opgavefrist",
-        titel=f"{datetime.now().strftime('%d%m%Y/')} - {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}",
+        titel=f"{datetime.now().strftime('%y%m%d')} - {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}",
         ansvarlig_organisation=organisation,
         start_dato=datetime.now()
     )
 
 def opret_sagsnotat_og_sagsbehandling(borger: dict, item_data: dict) -> None:
+    regler = get_excel_mapping()
     sagsnotat_data = {
-        "Emne": f"ddmmyyyy, gen/ansøgning hjælpemiddelstype",
-        "Tekst": f"ddmmyyyy, gen/ansøgning hjælpemiddelstype"
+        "Emne": f"{datetime.now().strftime('%y%m%d')}, {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}",
+        "Tekst": f"{datetime.now().strftime('%y%m%d')}, {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}"
     }
 
     sagsnotat = nexus.skemaer.opret_komplet_skema(
-        objekt=borger,
+        borger=borger,
         skematype_navn="Sagsnotat - Personlige hjælpemidler V2",
         handling_navn="Udfyldt",
         data=sagsnotat_data,
@@ -181,22 +207,30 @@ def opret_sagsnotat_og_sagsbehandling(borger: dict, item_data: dict) -> None:
         forløb="FSIII"        
     )
 
+    sagsområder = regler.get("XFlow - Nexus oversættelse", {})
+    hjælpemiddelstype = item_data["Hjælpemiddel"].strip()
+
+    if item_data["Hjælpemiddel"] in sagsområder:
+        sagsområde = sagsområder[hjælpemiddelstype]
+    elif "Andet" in sagsområder:
+        sagsområde = sagsområder["Andet"]
+    else:
+        raise WorkItemError(f"Sagsområde for '{hjælpemiddelstype}' ikke fundet.")
+
     sagsbehandling_data = {
-        "Angivsagsområde": "",
-        "Ansøgning modtaget": datetime.now().isoformat,
-        "Vurdering": f"ddmmyyyy, gen/ansøgning hjælpemiddelstype"
+        "Angiv sagsområde": sagsområde,
+        "Ansøgning modtaget": datetime.now(),
+        "Vurdering": f"{datetime.now().strftime('%y%m%d')}, {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}"
     }
 
     sagsbehandling = nexus.skemaer.opret_komplet_skema(
-        objekt=borger,
+        borger=borger,
         skematype_navn="Personlige hjælpemidler sagsbehandling",
         handling_navn="Udfyldt",
         data=sagsbehandling_data,
         grundforløb="Sundhedsfagligt grundforløb",
         forløb="FSIII"        
     )
-
-    # TODO: Verificer om skemaerne oprettes korrekt.
 
 async def process_workqueue(workqueue: Workqueue):
     for item in workqueue:
@@ -207,26 +241,35 @@ async def process_workqueue(workqueue: Workqueue):
                 borger = hent_borger(data["Cpr"])
                 tilføj_borger_til_organisation(borger, "Team Kropsbårne hjælpemidler")
                 korrespondance_forløb = tilføj_forløb_til_borger(borger)
-                upload_arbejdsgang_og_vedhæftede_filer(borger, korrespondance_forløb, data["DokumentIds"])   
+                upload_arbejdsgang_og_vedhæftede_filer(borger, korrespondance_forløb, data)   
                 opret_henvendelsesskema_og_opgave(borger=borger, item_data=data)
 
                 if (data["Hjælpemiddel"].strip().lower() == "andet"):
-                    #TODO: Advance XFlow Process
+                    #xflow_processor.opdater_og_godkend_trin_i_arbejdsgang(item_data=data, xflow_process_client=xflow_process_client)
                     tracker.track_task(proces_navn)
                     return
                 
                 opret_sagsnotat_og_sagsbehandling(borger, data)
-                # Ellers:
-                    # Opret dokumenter (sagsnotat, sagsbehandling)      
-                    # 
-                #TODO: Advance XFlow Process           
-                pass
+                #xflow_processor.opdater_og_godkend_trin_i_arbejdsgang(item_data=data, xflow_process_client=xflow_process_client)
+                    
             except WorkItemError as e:
                 # A WorkItemError represents a soft error that indicates the item should be passed to manual processing or a business logic fault
-                # Reject XFlow Process
+                # TODO: Extract rejection logic
+                proces = xflow_process_client.get_process(data["ProcesId"])
+
+                if proces is None:
+                    logger.error(f"Could not fetch process with ID {data['ProcesId']} to reject it after WorkItemError: {e}")
+                    item.fail(str(e))
+                    continue
+
+
+                activity_id = next(activity["possibleActivitiesIdsToRejectTo"][0] for activity in proces["activities"] if activity["activityName"] == "RPAIntegration")
+                xflow_process_client.reject_process(proces["publicId"], activity_id, f"Processering af arbejdsgang i Nexus fejlede med fejl: {e}")
+                logging.warning(
+                    f"Anmodning med id: {proces['publicId']} blev afvist, da handlinger er fejlet i Nexus. Fejlbesked: {e}"
+                )
                 logger.error(f"Error processing item: {data}. Error: {e}")
                 item.fail(str(e))
-
 
 if __name__ == "__main__":
     logging.basicConfig(

@@ -1,7 +1,9 @@
 from typing import Dict, List
 from openpyxl import load_workbook
 
-def get_excel_mapping() -> Dict[str, List[str]]:
+excel_mappings: Dict[str, Dict[str, str]] = {}
+
+def get_excel_mapping() -> Dict[str, Dict[str, str]]:
     """Henter mapping fra regneark"""
     global excel_mappings
     if not excel_mappings:
@@ -10,6 +12,8 @@ def get_excel_mapping() -> Dict[str, List[str]]:
 
 
 def load_excel_mapping(file_path: str):    
+    global excel_mappings
+    
     try:
         from openpyxl import load_workbook
         workbook = load_workbook(file_path)
@@ -21,7 +25,8 @@ def load_excel_mapping(file_path: str):
                 if key is not None and value is not None:
                     mapping[str(key)] = str(value)
             result[worksheet.title] = mapping
-        return result
+
+        excel_mappings = result
     except Exception as e:
         raise RuntimeError(
             f"Failed to load mapping from Excel file '{file_path}': {str(e)}"

@@ -1,3 +1,5 @@
+from xflow_client import ProcessClient
+from datetime import datetime
 from kmd_nexus_client.tree_helpers import (
     filter_by_predicate,    
 )
@@ -59,13 +61,13 @@ class XFlowProcessor:
                 results.extend(self.traverse_json_for_referable_elements(item))
         return results
 
-    def hent_dataudtræk_til_kødata(self, arbejdsgang) -> dict|None:
+    def hent_dataudtræk_til_kødata(self, arbejdsgang, xflow_process_client: ProcessClient) -> dict|None:
         try:
             blanketter = arbejdsgang["blanketter"]
 
             samlet_ansøgning = filter_by_predicate(
                 roots=blanketter,
-                predicate=lambda x: x["blanketnavn"] == "Kropsbårne hjælpemidler - samlet ansøgning V2"
+                predicate=lambda x: x["blanketnavn"] == "Kropsbårne hjælpemidler - samlet ansøgning V3 - Værdiliste"
             )
             person_oplysninger = filter_by_predicate(
                 roots=blanketter,
@@ -73,6 +75,8 @@ class XFlowProcessor:
             )
             filtreret_ansøgning = self.traverse_json_for_referable_elements(samlet_ansøgning[0])
             filtreret_person_oplysninger = self.traverse_json_for_referable_elements(person_oplysninger[0])
+
+            hjælpemiddel = str(xflow_process_client.find_process_element_value(arbejdsgang, "ElementVaerdilisteTypeHjaelpemiddel", "Valgtetekst"))
 
             cpr = filter_by_predicate(
                 roots=person_oplysninger[0]["elementer"],
@@ -96,10 +100,13 @@ class XFlowProcessor:
                 dokumentation = dokumentation[0]
                 self.tilfoej_dokument_id_paa_uploaded_dokumenter(dokumentation, vedhæftede_filer, "UploadBilag")
 
+            # Debug cpr:
+            cpr = "010858-9995"
+
             kødata = {
                 "Cpr": cpr,
                 "Genansøgning": genansøgning if genansøgning is not None else False,
-                #TODO: Hjælpemiddel
+                "Hjælpemiddel": hjælpemiddel,
                 "DokumentIds": vedhæftede_filer,
                 "ProcesId": arbejdsgang["publicId"]
             }
@@ -108,4 +115,23 @@ class XFlowProcessor:
 
         except Exception as e:
             return None
+        
+    def opdater_og_godkend_trin_i_arbejdsgang(self, item_data: dict, xflow_process_client: ProcessClient):
+        blanket_data = {
+            "formValues": [
+                {
+                    "elementIdentifier": "RPASignatur",
+                    "valueIdentifier": "Tekst",
+                    "value": "Behandlet af Tyra (RPA)"      
+                },
+                {
+                    "elementIdentifier": "RPABehandletDato",
+                    "valueIdentifier": "Dato",
+                    "value": datetime.today().strftime('%d-%m-%Y')      
+                }
+            ]        
+        }
+
+        xflow_process_client.update_process(item_data["ProcesId"], blanket_data)
+        xflow_process_client.advance_process(process_id=item_data["ProcesId"])
         
