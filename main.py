@@ -31,19 +31,24 @@ async def populate_queue(workqueue: Workqueue):
     xlow_søge_query = {
         "text": "",
         "processTemplateIds": [
-            "740" #372 #726
+            "744" #372 #726
         ],
         "startIndex": 0,        
-        "createdDateFrom": (datetime.today() - timedelta(days=1)).strftime('%d-%m-%Y'),
+    "createdDateFrom": (datetime.today() - timedelta(days=1)).strftime('%d-%m-%Y'),
         "createdDateTo":  datetime.today().strftime('%d-%m-%Y'),
     }
 
     afsluttede_arbejdsgange = xflow_process_client.search_processes_by_current_activity(
         query=xlow_søge_query,
-        activity_name="Slut" # TODO: Bør være RPAIntegration efter modificeret arbejdsgang
+        activity_name="RPAIntegration"
     )
         
     for arbejdsgang in afsluttede_arbejdsgange:
+        eksisterende_kødata = workqueue.get_item_by_reference(arbejdsgang["publicId"])
+
+        if len(eksisterende_kødata) > 0:
+            continue
+
         kødata = xflow_processor.hent_dataudtræk_til_kødata(arbejdsgang, xflow_process_client)
 
         if kødata is not None:            
@@ -245,28 +250,18 @@ async def process_workqueue(workqueue: Workqueue):
                 opret_henvendelsesskema_og_opgave(borger=borger, item_data=data)
 
                 if (data["Hjælpemiddel"].strip().lower() == "andet"):
-                    #xflow_processor.opdater_og_godkend_trin_i_arbejdsgang(item_data=data, xflow_process_client=xflow_process_client)
+                    xflow_processor.opdater_og_avancer_arbejdsgang(item_data=data, succes=True, xflow_process_client=xflow_process_client)
                     tracker.track_task(proces_navn)
                     return
                 
                 opret_sagsnotat_og_sagsbehandling(borger, data)
-                #xflow_processor.opdater_og_godkend_trin_i_arbejdsgang(item_data=data, xflow_process_client=xflow_process_client)
+                xflow_processor.opdater_og_avancer_arbejdsgang(item_data=data, succes=True, xflow_process_client=xflow_process_client)
                     
-            except WorkItemError as e:
-                # A WorkItemError represents a soft error that indicates the item should be passed to manual processing or a business logic fault
-                # TODO: Extract rejection logic
-                proces = xflow_process_client.get_process(data["ProcesId"])
-
-                if proces is None:
-                    logger.error(f"Could not fetch process with ID {data['ProcesId']} to reject it after WorkItemError: {e}")
-                    item.fail(str(e))
-                    continue
-
-
-                activity_id = next(activity["possibleActivitiesIdsToRejectTo"][0] for activity in proces["activities"] if activity["activityName"] == "RPAIntegration")
-                xflow_process_client.reject_process(proces["publicId"], activity_id, f"Processering af arbejdsgang i Nexus fejlede med fejl: {e}")
+            except WorkItemError as e:                
+                xflow_processor.opdater_og_avancer_arbejdsgang(item_data=data, succes=False, xflow_process_client=xflow_process_client)
+                
                 logging.warning(
-                    f"Anmodning med id: {proces['publicId']} blev afvist, da handlinger er fejlet i Nexus. Fejlbesked: {e}"
+                    f"Anmodning med id: {data['ProcesId']} er fejlet og overgår til manuel behandling via mail-aflevering. Fejl: {e}"
                 )
                 logger.error(f"Error processing item: {data}. Error: {e}")
                 item.fail(str(e))

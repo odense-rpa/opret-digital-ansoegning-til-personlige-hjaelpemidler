@@ -98,9 +98,9 @@ class XFlowProcessor:
             dokumentation = dokumentation[0].get("children", {}) if dokumentation else None
             if isinstance(dokumentation, list) and len(dokumentation) > 0:
                 dokumentation = dokumentation[0]
-                self.tilfoej_dokument_id_paa_uploaded_dokumenter(dokumentation, vedhæftede_filer, "UploadBilag")
+                self.tilfoej_dokument_id_paa_uploaded_dokumenter(dokumentation, vedhæftede_filer, "UploadDokumentationVaerge")
 
-            # Debug cpr:
+            # TODO: Debug cpr:
             cpr = "010858-9995"
 
             kødata = {
@@ -116,7 +116,7 @@ class XFlowProcessor:
         except Exception as e:
             return None
         
-    def opdater_og_godkend_trin_i_arbejdsgang(self, item_data: dict, xflow_process_client: ProcessClient):
+    def opdater_og_avancer_arbejdsgang(self, item_data: dict, succes: bool, xflow_process_client: ProcessClient):
         blanket_data = {
             "formValues": [
                 {
@@ -128,6 +128,11 @@ class XFlowProcessor:
                     "elementIdentifier": "RPABehandletDato",
                     "valueIdentifier": "Dato",
                     "value": datetime.today().strftime('%d-%m-%Y')      
+                },
+                {
+                    "elementIdentifier": "ProcesVidereYesNo",
+                    "valueIdentifier": "YesSelected",
+                    "value": str(succes)     
                 }
             ]        
         }
