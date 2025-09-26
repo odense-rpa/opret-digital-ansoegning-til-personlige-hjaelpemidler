@@ -614,7 +614,7 @@ wheels = [
 [[package]]
 name = "xflow-client"
 version = "0.1.0"
-source = { git = "https://github.com/odense-rpa/xflow-client.git?rev=master#470c0976d791f6c7a61fae2e3eec825d06a7206a" }
+source = { git = "https://github.com/odense-rpa/xflow-client.git?rev=master#b3a0019d3b2a0a1866ea3d14abee24206c3fe377" }
 dependencies = [
     { name = "authlib" },
     { name = "httpx" },

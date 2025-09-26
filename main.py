@@ -28,7 +28,7 @@ async def populate_queue(workqueue: Workqueue):
     xlow_søge_query = {
         "text": "",
         "processTemplateIds": [
-            "744" #372 #726
+            "744"
         ],
         "startIndex": 0,        
         "createdDateFrom": (datetime.today() - timedelta(days=1)).strftime('%d-%m-%Y'),
