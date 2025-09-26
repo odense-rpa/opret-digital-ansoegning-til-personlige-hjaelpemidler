@@ -56,9 +56,6 @@ class XFlowService:
                 dokumentation = dokumentation[0]
                 self.tilfoej_dokument_id_paa_uploaded_dokumenter(dokumentation, vedhæftede_filer, "UploadDokumentationVaerge")
 
-            # TODO: Debug cpr:
-            cpr = "010858-9995"
-
             kødata = {
                 "Cpr": cpr,
                 "Genansøgning": genansøgning if genansøgning is not None else False,
