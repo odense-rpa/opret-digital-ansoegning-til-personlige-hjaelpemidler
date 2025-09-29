@@ -2,11 +2,12 @@ import base64
 
 from datetime import datetime
 from kmd_nexus_client import NexusClientManager
-from automation_server_client import WorkItemError
 from kmd_nexus_client.tree_helpers import (
     filter_by_path
 )
+from kmd_nexus_client.utils import sanitize_cpr
 from xflow_client import ProcessClient, DocumentClient
+from automation_server_client import WorkItemError
 from process.config import get_excel_mapping
 
 class NexusService:
@@ -15,7 +16,8 @@ class NexusService:
         self.xflow_process = xflow_process_client
         self.xflow_document = xflow_document_client
         
-    def hent_borger(self, cpr: str) -> dict:        
+    def hent_borger(self, cpr: str) -> dict:
+        cpr = sanitize_cpr(cpr)
         borger = self.nexus.borgere.hent_borger(cpr)
 
         if borger is None:
