@@ -15,12 +15,12 @@ class NexusService:
         self.xflow_process = xflow_process_client
         self.xflow_document = xflow_document_client
         
-    def hent_borger(self, cpr: str) -> dict:
+    def hent_borger(self, cpr: str) -> dict:        
         borger = self.nexus.borgere.hent_borger(cpr)
 
         if borger is None:
             self.nexus.borgere.opret_borger(borger_cpr=cpr)
-            borger = self.nexus.borgere.hent_borger(cpr)
+            borger = self.nexus.borgere.hent_borger(cpr)            
 
         if borger is None:
             raise WorkItemError(f"Borger med CPR {cpr} kunne ikke oprettes i Nexus.")
