@@ -70,7 +70,7 @@ async def process_workqueue(workqueue: Workqueue):
                 
                 nexus_service.opret_sagsnotat_og_sagsbehandling(borger, data)
                 xflow_service.opdater_og_avancer_arbejdsgang(item_data=data, succes=True, xflow_process_client=xflow_process_client)
-                    
+                tracker.track_task(proces_navn)
             except WorkItemError as e:                
                 xflow_service.opdater_og_avancer_arbejdsgang(item_data=data, succes=False, xflow_process_client=xflow_process_client)
                 
