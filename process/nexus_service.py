@@ -20,9 +20,11 @@ class NexusService:
         cpr = sanitize_cpr(cpr)
         borger = self.nexus.borgere.hent_borger(cpr)
 
-        if borger is None or borger.get("patientStatus") == "DRAFT":
+        if borger is None:
             self.nexus.borgere.opret_borger(borger_cpr=cpr)
-            borger = self.nexus.borgere.hent_borger(cpr)            
+            borger = self.nexus.borgere.hent_borger(cpr)
+        elif borger.get("patientStatus") == "DRAFT":
+            borger = self.nexus.borgere.aktiver_borger(borger)
 
         if borger is None:
             raise WorkItemError(f"Borger med CPR {cpr} kunne ikke oprettes i Nexus.")
@@ -151,6 +153,7 @@ class NexusService:
         else:
             raise WorkItemError(f"Opgaveansvarlig organisation for '{hjælpemiddelstype}' ikke fundet.")
 
+        # Funny dato format for opgaver pga. underlige arbejdsvaner.
         self.nexus.opgaver.opret_opgave(
             objekt=skema,
             opgave_type="Myndighed Kropsbårne hjælpemidler - uden opgavefrist",
@@ -162,8 +165,8 @@ class NexusService:
     def opret_sagsnotat_og_sagsbehandling(self, borger: dict, item_data: dict) -> None:
         regler = get_excel_mapping()
         sagsnotat_data = {
-            "Emne": f"{datetime.now().strftime('%y%m%d')}, {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}",
-            "Tekst": f"{datetime.now().strftime('%y%m%d')}, {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}"
+            "Emne": f"{datetime.now().strftime('%d%m%y')} {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}",
+            "Tekst": f"{datetime.now().strftime('%d%m%y')} {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}"
         }
 
         sagsnotat = self.nexus.skemaer.opret_komplet_skema(
@@ -188,7 +191,7 @@ class NexusService:
         sagsbehandling_data = {
             "Angiv sagsområde": sagsområde,
             "Ansøgning modtaget": datetime.now(),
-            "Vurdering": f"{datetime.now().strftime('%y%m%d')}, {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}"
+            "Vurdering": f"{datetime.now().strftime('%d%m%y')} {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}"
         }
 
         sagsbehandling = self.nexus.skemaer.opret_komplet_skema(
