@@ -40,7 +40,7 @@ class XFlowService:
             )
             cpr = cpr[0].get("values", {}).get("CprNummer") if cpr else None
 
-            genansøgning = next((e.get("values", {}).get("YesSelected") for e in filtreret_ansøgning if e.get("identifier") == "HarDuTidligereSoegt"), None)
+            genansøgning = next((e.get("values", {}).get("YesSelected") for e in filtreret_ansøgning if e.get("identifier") == "HarDuTidligereSoegt"), "False") == "True"
             
             vedhæftede_filer = []
 
