@@ -20,7 +20,7 @@ class NexusService:
         cpr = sanitize_cpr(cpr)
         borger = self.nexus.borgere.hent_borger(cpr)
 
-        if borger is None:
+        if borger is None or borger.get("patientStatus") == "DRAFT":
             self.nexus.borgere.opret_borger(borger_cpr=cpr)
             borger = self.nexus.borgere.hent_borger(cpr)            
 
