@@ -281,7 +281,7 @@ wheels = [
 [[package]]
 name = "kmd-nexus-client"
 version = "0.2.4"
-source = { git = "https://github.com/odense-rpa/nexus-client.git?rev=main#f38e2dba4c7a4d293f6f3b5a186f0a708411aadd" }
+source = { git = "https://github.com/odense-rpa/nexus-client.git?rev=main#b14e894e8faf23009341e7030f631bef5032806a" }
 dependencies = [
     { name = "authlib" },
     { name = "httpx" },
