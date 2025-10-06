@@ -57,11 +57,11 @@ async def process_workqueue(workqueue: Workqueue):
             data = item.data
  
             try:
-                borger, ny_borger = nexus_service.hent_borger(data["Cpr"])
+                borger = nexus_service.hent_borger(data["Cpr"])
                 nexus_service.tilføj_borger_til_organisation(borger, "Team Kropsbårne hjælpemidler")
                 korrespondance_forløb = nexus_service.tilføj_forløb_til_borger(borger)
                 nexus_service.upload_arbejdsgang_og_vedhæftede_filer(borger, korrespondance_forløb, data)
-                nexus_service.opret_henvendelsesskema_og_opgave(borger=borger, item_data=data, ny_borger=ny_borger)
+                nexus_service.opret_henvendelsesskema_og_opgave(borger=borger, item_data=data)
 
                 if (data["Hjælpemiddel"].strip().lower() == "andet"):
                     xflow_service.opdater_og_avancer_arbejdsgang(item_data=data, succes=True, xflow_process_client=xflow_process_client)
