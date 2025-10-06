@@ -66,7 +66,7 @@ class XFlowService:
             
             return kødata
 
-        except Exception as e:
+        except Exception:
             return None
         
     def opdater_og_avancer_arbejdsgang(self, item_data: dict, succes: bool, xflow_process_client: ProcessClient):

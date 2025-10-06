@@ -16,20 +16,23 @@ class NexusService:
         self.xflow_process = xflow_process_client
         self.xflow_document = xflow_document_client
         
-    def hent_borger(self, cpr: str) -> dict:
+    def hent_borger(self, cpr: str) -> tuple[dict, bool]:
+        ny_borger = False
         cpr = sanitize_cpr(cpr)
         borger = self.nexus.borgere.hent_borger(cpr)
 
         if borger is None:
             self.nexus.borgere.opret_borger(borger_cpr=cpr)
             borger = self.nexus.borgere.hent_borger(cpr)
+            ny_borger = True
         elif borger.get("patientStatus") == "DRAFT":
            borger = self.nexus.borgere.aktiver_borger_fra_kladde(borger)
+           ny_borger = True
 
         if borger is None:
             raise WorkItemError(f"Borger med CPR {cpr} kunne ikke oprettes i Nexus.")
 
-        return borger
+        return borger, ny_borger
 
     def tilføj_borger_til_organisation(self, borger: dict, organisation_navn: str):
         organisation = self.nexus.organisationer.hent_organisation_ved_navn(organisation_navn)
@@ -83,7 +86,7 @@ class NexusService:
                     borger=borger,
                     forløb=forløb,
                     fil=arbejdsgang_som_pdf,
-                    filnavn=f"ansøgning.pdf",
+                    filnavn="ansøgning.pdf",
                     titel=f"{'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} {item_data['Hjælpemiddel']}",
                     noter="",
                     modtaget=datetime.now(),
@@ -120,7 +123,7 @@ class NexusService:
             raise WorkItemError(f"Fejl ved upload af arbejdsgang og vedhæftede filer til borger i Nexus: {e}")
         
 
-    def opret_henvendelsesskema_og_opgave(self, borger: dict, item_data: dict) -> None:
+    def opret_henvendelsesskema_og_opgave(self, borger: dict, item_data: dict, ny_borger: bool) -> None:
         regler = get_excel_mapping()
         
         skema_data = {
@@ -157,7 +160,7 @@ class NexusService:
         self.nexus.opgaver.opret_opgave(
             objekt=skema,
             opgave_type="Myndighed Kropsbårne hjælpemidler - uden opgavefrist",
-            titel=f"{datetime.now().strftime('%y%m%d')} - {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}",
+            titel=f"{datetime.now().strftime('%y%m%d')} - {'Ny,' if ny_borger else ''} {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}",
             ansvarlig_organisation=organisation,
             start_dato=datetime.now()
         )
@@ -169,7 +172,7 @@ class NexusService:
             "Tekst": f"{datetime.now().strftime('%d%m%y')} {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}"
         }
 
-        sagsnotat = self.nexus.skemaer.opret_komplet_skema(
+        self.nexus.skemaer.opret_komplet_skema(
             borger=borger,
             skematype_navn="Sagsnotat - Personlige hjælpemidler V2",
             handling_navn="Udfyldt",
@@ -194,7 +197,7 @@ class NexusService:
             "Vurdering": f"{datetime.now().strftime('%d%m%y')} {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}"
         }
 
-        sagsbehandling = self.nexus.skemaer.opret_komplet_skema(
+        self.nexus.skemaer.opret_komplet_skema(
             borger=borger,
             skematype_navn="Personlige hjælpemidler sagsbehandling",
             handling_navn="Udfyldt",
