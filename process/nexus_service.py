@@ -121,8 +121,6 @@ class NexusService:
         
 
     def opret_henvendelsesskema_og_opgave(self, borger: dict, item_data: dict) -> None:
-        regler = get_excel_mapping()
-        
         skema_data = {
             "Henvendelse modtaget": datetime.now(),
             "Kilde som henvendelsen kommer fra": "Borger",
@@ -143,22 +141,12 @@ class NexusService:
         if skema is None:
             raise WorkItemError("Henvendelsesskema kunne ikke oprettes i Nexus.")
         
-        hjælpemiddelstype = item_data["Hjælpemiddel"].split("-")[0].strip()
-        organisationer = regler.get("Opgaveansvarlig organisation", {})
-
-        if hjælpemiddelstype in organisationer:
-            organisation = organisationer[hjælpemiddelstype]
-        elif "Andet" in organisationer:
-            organisation = organisationer["Andet"]
-        else:
-            raise WorkItemError(f"Opgaveansvarlig organisation for '{hjælpemiddelstype}' ikke fundet.")
-
         # Funny dato format for opgaver pga. underlige arbejdsvaner.
         self.nexus.opgaver.opret_opgave(
             objekt=skema,
             opgave_type="Myndighed Kropsbårne hjælpemidler - uden opgavefrist",
             titel=f"{datetime.now().strftime('%y%m%d')} - {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}",
-            ansvarlig_organisation=organisation,
+            ansvarlig_organisation=self.hent_ansvarlig_organisation(item_data),
             start_dato=datetime.now()
         )
 
@@ -169,9 +157,11 @@ class NexusService:
             "Tekst": f"{datetime.now().strftime('%d%m%y')} {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}"
         }
 
+        ansvarlig_organisation = self.hent_ansvarlig_organisation(item_data)
+
         self.nexus.skemaer.opret_komplet_skema(
             borger=borger,
-            skematype_navn="Sagsnotat - Personlige hjælpemidler V2",
+            skematype_navn="Sagsnotat - Inkontinens" if ansvarlig_organisation == 'Sygeplejehjælpemidler' else "Sagsnotat - Personlige hjælpemidler V2",
             handling_navn="Udfyldt",
             data=sagsnotat_data,
             grundforløb="Sundhedsfagligt grundforløb",
@@ -202,3 +192,17 @@ class NexusService:
             grundforløb="Sundhedsfagligt grundforløb",
             forløb="FSIII"        
         )
+
+    def hent_ansvarlig_organisation(self, item_data: dict) -> str:
+        regler = get_excel_mapping()
+        hjælpemiddelstype = item_data["Hjælpemiddel"].split("-")[0].strip()
+        organisationer = regler.get("Opgaveansvarlig organisation", {})
+
+        if hjælpemiddelstype in organisationer:
+            organisation = organisationer[hjælpemiddelstype]
+        elif "Andet" in organisationer:
+            organisation = organisationer["Andet"]
+        else:
+            raise WorkItemError(f"Opgaveansvarlig organisation for '{hjælpemiddelstype}' ikke fundet.")
+        
+        return organisation
