@@ -121,11 +121,13 @@ class NexusService:
         
 
     def opret_henvendelsesskema_og_opgave(self, borger: dict, item_data: dict) -> None:
+        ansvarlig_organisation = self.hent_ansvarlig_organisation(item_data)
+
         skema_data = {
             "Henvendelse modtaget": datetime.now(),
             "Kilde som henvendelsen kommer fra": "Borger",
             "Er borgeren indforstået med henvendelsen?": "Ja",
-            "Hvad drejer henvendelsen sig om?": "§112 kropsbårne",
+            "Hvad drejer henvendelsen sig om?": {'§112 kontinens' if ansvarlig_organisation == 'Sygeplejehjælpemidler' else '§112 kropsbårne'},
             "Årsag til henvendelse og sagsbehandlingsforløb (OBS. Husk dato og initialer på noter, og skriv nyeste note nederst)": f"{'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data["Hjælpemiddel"]}{' - Vedhæftede filer' if len(item_data['DokumentIds']) > 0 else ''}"
         }
 
@@ -146,7 +148,7 @@ class NexusService:
             objekt=skema,
             opgave_type="Myndighed Kropsbårne hjælpemidler - uden opgavefrist",
             titel=f"{datetime.now().strftime('%y%m%d')} - {'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}",
-            ansvarlig_organisation=self.hent_ansvarlig_organisation(item_data),
+            ansvarlig_organisation=ansvarlig_organisation,
             start_dato=datetime.now()
         )
 
