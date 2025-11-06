@@ -31,7 +31,7 @@ async def populate_queue(workqueue: Workqueue):
             "744"
         ],
         "startIndex": 0,        
-        "createdDateFrom": (datetime.today() - timedelta(days=30)).strftime('%d-%m-%Y'),
+        "createdDateFrom": (datetime.today() - timedelta(days=5)).strftime('%d-%m-%Y'),
         "createdDateTo":  datetime.today().strftime('%d-%m-%Y'),
     }
 
