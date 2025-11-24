@@ -9,7 +9,6 @@ from automation_server_client import AutomationServer, Workqueue, Credential, Wo
 from kmd_nexus_client import NexusClientManager
 from xflow_client import XFlowClient, ProcessClient, DocumentClient
 from odk_tools.tracking import Tracker
-from odk_tools.reporting import Reporter
 from process.nexus_service import NexusService
 from process.xflow_service import XFlowService
 from process.config import load_excel_mapping
@@ -20,7 +19,6 @@ xflow_process_client: ProcessClient
 xflow_document_client: DocumentClient
 xflow_service: XFlowService
 tracker: Tracker
-reporter: Reporter
 proces_navn = "Opret digital ansøgning til personlige hjælpemidler"
 
 
@@ -91,8 +89,7 @@ if __name__ == "__main__":
     nexus_credential = Credential.get_credential("KMD Nexus - produktion")    
     xflow_credential = Credential.get_credential("Xflow - produktion")
     tracking_credential = Credential.get_credential("Odense SQL Server")
-    reporting_credential = Credential.get_credential("RoboA")
-    
+        
     nexus = NexusClientManager(
         client_id=nexus_credential.username,
         client_secret=nexus_credential.password,
@@ -112,11 +109,6 @@ if __name__ == "__main__":
     tracker = Tracker(
         username=tracking_credential.username, 
         password=tracking_credential.password
-    )
-
-    reporter = Reporter(
-        username=reporting_credential.username,
-        password=reporting_credential.password
     )
 
      # Parse command line arguments
