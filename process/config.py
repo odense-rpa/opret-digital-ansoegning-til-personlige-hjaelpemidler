@@ -1,7 +1,8 @@
-from typing import Dict, List
+from typing import Dict
 from openpyxl import load_workbook
 
 excel_mappings: Dict[str, Dict[str, str]] = {}
+
 
 def get_excel_mapping() -> Dict[str, Dict[str, str]]:
     """Henter mapping fra regneark"""
@@ -11,11 +12,10 @@ def get_excel_mapping() -> Dict[str, Dict[str, str]]:
     return excel_mappings
 
 
-def load_excel_mapping(file_path: str):    
+def load_excel_mapping(file_path: str):
     global excel_mappings
-    
+
     try:
-        from openpyxl import load_workbook
         workbook = load_workbook(file_path)
         result = {}
         for worksheet in workbook.worksheets:
