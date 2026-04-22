@@ -5,7 +5,12 @@ import asyncio
 import logging
 
 from datetime import datetime, timedelta
-from automation_server_client import AutomationServer, Workqueue, Credential, WorkItemStatus
+from automation_server_client import (
+    AutomationServer,
+    Workqueue,
+    Credential,
+    WorkItemStatus,
+)
 from kmd_nexus_client import NexusClientManager
 from xflow_client import XFlowClient, ProcessClient, DocumentClient
 from odk_tools.tracking import Tracker
@@ -25,19 +30,16 @@ proces_navn = "Opret digital ansøgning til personlige hjælpemidler"
 async def populate_queue(workqueue: Workqueue):
     xlow_søge_query = {
         "text": "",
-        "processTemplateIds": [
-            "744"
-        ],
-        "startIndex": 0,        
-        "createdDateFrom": (datetime.today() - timedelta(days=5)).strftime('%d-%m-%Y'),
-        "createdDateTo":  datetime.today().strftime('%d-%m-%Y'),
+        "processTemplateIds": ["744"],
+        "startIndex": 0,
+        "createdDateFrom": (datetime.today() - timedelta(days=5)).strftime("%d-%m-%Y"),
+        "createdDateTo": datetime.today().strftime("%d-%m-%Y"),
     }
 
     afsluttede_arbejdsgange = xflow_process_client.search_processes_by_current_activity(
-        query=xlow_søge_query,
-        activity_name="RPAIntegration"
+        query=xlow_søge_query, activity_name="RPAIntegration"
     )
-        
+
     for arbejdsgang in afsluttede_arbejdsgange:
         eksisterende_kødata = workqueue.get_item_by_reference(arbejdsgang["publicId"])
 
@@ -46,50 +48,68 @@ async def populate_queue(workqueue: Workqueue):
 
         kødata = xflow_service.hent_dataudtræk_til_kødata(arbejdsgang)
 
-        if kødata is not None:            
+        if kødata is not None:
             workqueue.add_item(data=kødata, reference=f"{kødata['ProcesId']}")
+
 
 async def process_workqueue(workqueue: Workqueue):
     for item in workqueue:
-        with item:            
+        with item:
             data = item.data
- 
+
             try:
                 borger = nexus_service.hent_borger(data["Cpr"])
-                nexus_service.tilføj_borger_til_organisation(borger, "Team Kropsbårne hjælpemidler")
-                korrespondance_forløb = nexus_service.tilføj_forløb_til_borger(borger)
-                nexus_service.upload_arbejdsgang_og_vedhæftede_filer(borger, korrespondance_forløb, data)
-                nexus_service.opret_henvendelsesskema_og_opgave(borger=borger, item_data=data)
+                nexus_service.tilføj_borger_til_organisation(
+                    borger, "Team Kropsbårne hjælpemidler"
+                )
+                sagsforløb = nexus_service.tilføj_forløb_til_borger(borger)
+                nexus_service.upload_arbejdsgang_og_vedhæftede_filer(
+                    borger, sagsforløb, data
+                )
+                nexus_service.opret_henvendelsesskema_og_opgave(
+                    borger=borger, item_data=data
+                )
 
-                if (data["Hjælpemiddel"].strip().lower() == "andet"):
-                    xflow_service.opdater_og_avancer_arbejdsgang(item_data=data, succes=True, xflow_process_client=xflow_process_client)
+                if data["Hjælpemiddel"].strip().lower() == "andet":
+                    xflow_service.opdater_og_avancer_arbejdsgang(
+                        item_data=data,
+                        succes=True,
+                        xflow_process_client=xflow_process_client,
+                    )
                     tracker.track_task(proces_navn)
                     return
-                
+
                 nexus_service.opret_sagsnotat_og_sagsbehandling(borger, data)
-                xflow_service.opdater_og_avancer_arbejdsgang(item_data=data, succes=True, xflow_process_client=xflow_process_client)
+                xflow_service.opdater_og_avancer_arbejdsgang(
+                    item_data=data,
+                    succes=True,
+                    xflow_process_client=xflow_process_client,
+                )
                 tracker.track_task(proces_navn)
-            except Exception as e:                
-                xflow_service.opdater_og_avancer_arbejdsgang(item_data=data, succes=False, xflow_process_client=xflow_process_client)
-                
+            except Exception as e:
+                xflow_service.opdater_og_avancer_arbejdsgang(
+                    item_data=data,
+                    succes=False,
+                    xflow_process_client=xflow_process_client,
+                )
+
                 logging.warning(
                     f"Anmodning med id: {data['ProcesId']} er fejlet og overgår til manuel behandling via mail-aflevering. Fejl: {e}"
                 )
                 logger.error(f"Error processing item: {data}. Error: {e}")
                 item.fail(str(e))
 
+
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO        
-    )
+    logging.basicConfig(level=logging.INFO)
 
     ats = AutomationServer.from_environment()
     workqueue = ats.workqueue()
 
-    nexus_credential = Credential.get_credential("KMD Nexus - produktion")    
+    nexus_credential = Credential.get_credential("KMD Nexus - produktion")
     xflow_credential = Credential.get_credential("Xflow - produktion")
     tracking_credential = Credential.get_credential("Odense SQL Server")
-        
+
     nexus = NexusClientManager(
         client_id=nexus_credential.username,
         client_secret=nexus_credential.password,
@@ -104,14 +124,17 @@ if __name__ == "__main__":
     xflow_document_client = DocumentClient(xflow_client)
 
     xflow_service = XFlowService(xflow_client, xflow_process_client)
-    nexus_service = NexusService(nexus, xflow_process_client=xflow_process_client, xflow_document_client=xflow_document_client)
-    
-    tracker = Tracker(
-        username=tracking_credential.username, 
-        password=tracking_credential.password
+    nexus_service = NexusService(
+        nexus,
+        xflow_process_client=xflow_process_client,
+        xflow_document_client=xflow_document_client,
     )
 
-     # Parse command line arguments
+    tracker = Tracker(
+        username=tracking_credential.username, password=tracking_credential.password
+    )
+
+    # Parse command line arguments
     parser = argparse.ArgumentParser(description=proces_navn)
     parser.add_argument(
         "--excel-file",
@@ -142,4 +165,3 @@ if __name__ == "__main__":
 
     # Process workqueue
     asyncio.run(process_workqueue(workqueue))
-

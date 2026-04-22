@@ -9,6 +9,7 @@ dependencies = [
     "kmd-nexus-client",
     "odk-tools",
     "openpyxl",
+    "ruff>=0.15.11",
     "xflow-client",
 ]
 
