@@ -178,7 +178,7 @@ class NexusService:
 
         skema_data = {
             "Henvendelse modtaget": datetime.now(),
-            "Kilde som henvendelsen kommer fra": "Borger",
+            "Kilde som henvendelses kommer fra": "Borger", # Typo i Nexus
             "Er borgeren indforstået med henvendelsen?": "Ja",
             "Ansvarlig myndighedsorganisation": f"{'Indgangen' if ansvarlig_organisation == 'Sygeplejehjælpemidler' else 'Fysisk Funktionsnedsættelse'}",
             "Henvendelsesårsag": f"{'Genansøgning' if item_data['Genansøgning'] else 'Ansøgning'} - {item_data['Hjælpemiddel']}{' - Vedhæftede filer' if len(item_data['DokumentIds']) > 0 else ''}",
