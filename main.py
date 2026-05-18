@@ -114,6 +114,7 @@ if __name__ == "__main__":
         client_id=nexus_credential.username,
         client_secret=nexus_credential.password,
         instance=nexus_credential.data["instance"],
+        timeout=120,
     )
 
     xflow_client = XFlowClient(
