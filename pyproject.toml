@@ -1,7 +1,7 @@
 [project]
-name = "process-template"
-version = "0.2.0"
-description = "Add your description here"
+name = "opret-digital-ansoegning-til-personlige-hjaelpemidler"
+version = "0.2.1"
+description = "Automatisering der behandler afsluttede XFlow-arbejdsgange for ansøgninger om kropsbårne hjælpemidler og opretter tilhørende sag i KMD Nexus."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
